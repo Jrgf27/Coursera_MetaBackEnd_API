@@ -1,12 +1,12 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
-
+import datetime
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Category, MenuItem, Cart
-from .serializer import MenuItemSerializer, UserSerializer, CartSerializer
+from .models import Category, MenuItem, Cart, Order, OrderItem
+from .serializer import MenuItemSerializer, UserSerializer, CartSerializer, OrderSerializer, OrderItemSerializer
 from .permissions import *
 
 # Create your views here.
@@ -130,3 +130,110 @@ class CustomerCartView(viewsets.ViewSet):
     def destroy(self, request, pk=None):
         Cart.objects.filter(user=request.user).delete()
         return Response({"message":"Deleted all carts for user"}, status.HTTP_200_OK)
+    
+class OrdersView(viewsets.ViewSet):
+
+    def get_permissions(self):
+        return [IsAuthenticated()]
+
+    def list(self,request):
+        if IsCustomer():
+            orders= Order.objects.filter(user=request.user)
+        elif IsManager():
+            orders= Order.objects.all()
+        elif IsDeliveryCrew():
+            orders= Order.objects.filter(deliver_crew = request.user)
+
+        serialized_order = OrderSerializer(orders, many=True)
+        return Response(serialized_order.data, status.HTTP_200_OK)
+    
+    def create(self, request):
+        if not (request.user.groups.filter(name='Manager').exists() or\
+                request.user.groups.filter(name='Delivery Crew').exists()):
+
+            serialized_menuItem = OrderItemSerializer(data=request.data)
+            serialized_menuItem.is_valid(raise_exception=True)
+            cart = Cart.objects.filter(user=request.user)
+            newOrder = Order(
+                user = request.user,
+                total = 0,
+                date = datetime.date.today()
+            )
+            newOrder.save()
+            for item in cart:
+                orderitem = OrderItem(
+                    order = newOrder,
+                    menuitem = item.menuitem,
+                    quantity = item.quantity,
+                    unit_price = item.unit_price,
+                    price = item.price
+                )
+                orderitem.save()
+                newOrder.total += item.price
+
+            newOrder.save()
+            cart.delete()
+            orderItemsAll = OrderItem.objects.filter(order=newOrder)
+            serialized_order = OrderSerializer(newOrder, many=False)
+            serialized_orderItem = OrderItemSerializer(orderItemsAll, many=True)
+            return Response({'order_data':serialized_order.data,'order_item_data':serialized_orderItem.data}, status.HTTP_201_CREATED)
+        
+        else:
+            return Response({'message':'Unauthorized User'},status.HTTP_401_UNAUTHORIZED)
+    
+    def update(self, request, pk=None):      
+        if request.user.groups.filter(name='Manager').exists():
+            order = get_object_or_404(Order, pk=pk)
+            serialized_order = OrderSerializer(order, data=request.data)
+            serialized_order.is_valid(raise_exception=True)
+            serialized_order.save(
+                status = serialized_order.validated_data['status']
+            )
+            return Response(serialized_order.data, status.HTTP_200_OK)
+        
+        else:
+            return Response({'message':'Unauthorized User'},status.HTTP_401_UNAUTHORIZED)
+    
+    def retrieve(self, request, pk=None):
+        if not (request.user.groups.filter(name='Manager').exists() or\
+                request.user.groups.filter(name='Delivery Crew').exists()):
+            
+            order = get_object_or_404(Order, pk=pk)
+            if order.user != request.user:
+                return Response({'message':'Unauthorized User'},status.HTTP_401_UNAUTHORIZED)
+            
+            serialized_order= OrderSerializer(order)
+            return Response(serialized_order.data, status.HTTP_200_OK)
+        
+        else:
+            return Response({'message':'Unauthorized User'},status.HTTP_401_UNAUTHORIZED)
+    
+    def partial_update(self, request, pk=None):
+        if request.user.groups.filter(name='Delivery Crew').exists():
+            order = get_object_or_404(Order, pk=pk)
+            if order.delivery_crew != request.user:
+                return Response({'message':'Unauthorized User'},status.HTTP_401_UNAUTHORIZED)
+            serialized_order = OrderSerializer(order, data=request.data)
+            serialized_order.is_valid(raise_exception=True)
+            order.status = serialized_order.validated_data['status']
+            order.save()
+            return Response(serialized_order.data, status.HTTP_200_OK)
+        
+        elif request.user.groups.filter(name='Manager').exists():
+            order = get_object_or_404(Order, pk=pk)
+            serialized_order = OrderSerializer(order, data=request.data)
+            serialized_order.is_valid(raise_exception=True)
+            serialized_order.save()
+            return Response(serialized_order.data, status.HTTP_200_OK)
+        
+        else:
+            return Response({'message':'Unauthorized User'},status.HTTP_401_UNAUTHORIZED)
+    
+    def destroy(self, request, pk=None):
+        if request.user.groups.filter(name='Manager').exists():
+            order = get_object_or_404(Order, pk=pk)
+            order.delete()
+            return Response({"message":"Deleting order"}, status.HTTP_200_OK)
+        
+        else:
+            return Response({'message':'Unauthorized User'},status.HTTP_401_UNAUTHORIZED)
