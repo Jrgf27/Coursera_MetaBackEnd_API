@@ -4,19 +4,13 @@ from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter(trailing_slash=False)
 router.register('menu_items', views.MenuItemView, basename='menu_items')
+router.register('groups/manager/users', views.GroupsManagerView, basename='manager')
+router.register('groups/delivery_crew/users', views.GroupsDeliveryCrewView, basename='delivery_crew')
+
 urlpatterns =[
-    path('groups/manager/users', views.GroupsManager.as_view({
+    path('cart/menu-items', views.CustomerCartView.as_view({
         'get':'list',
-        'post':'create'
-    })),
-    path('groups/manager/users/<int:pk>', views.GroupsManager.as_view({
-        'delete':'destroy'
-    })),
-    path('groups/delivery_crew/users', views.GroupsDeliveryCrew.as_view({
-        'get':'list',
-        'post':'create'
-    })),
-    path('groups/delivery_crew/users/<int:pk>', views.GroupsDeliveryCrew.as_view({
-        'delete':'destroy'
-    })),
+        'post':'create',
+        'delete':'destroy',
+    }))
 ] + router.urls
