@@ -27,9 +27,6 @@ class MenuItemView(viewsets.ViewSet):
     def create(self, request):       
         serialized_menuItem = MenuItemSerializer(data=request.data)
         serialized_menuItem.is_valid(raise_exception=True)
-        if not Category.objects.filter(pk=serialized_menuItem.validated_data['category_id']).exists():
-            return Response({"message":"Category_Id invalid"}, status.HTTP_400_BAD_REQUEST)
-        
         serialized_menuItem.save()
         return Response(serialized_menuItem.data, status.HTTP_201_CREATED)
     

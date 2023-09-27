@@ -17,6 +17,11 @@ class MenuItemSerializer(serializers.ModelSerializer):
         model = MenuItem
         fields = ['title','price','featured','category','category_id']
 
+    def validate_category_id(self, value):
+        if not Category.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Category_Id invalid")
+        return value
+
 class GroupSerializer(serializers.ModelSerializer):
     class Meta:
         model=Group
@@ -41,6 +46,11 @@ class CartSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cart
         fields = ['user', 'menuitem','menuitem_id', 'quantity', 'unit_price', 'price']
+
+    def validate_menuitem_id(self,value):
+        if not MenuItem.objects.filter(pk=value).exists():
+            raise serializers.ValidationError("Menuitem_Id invalid")
+        return value
 
 class OrderSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
