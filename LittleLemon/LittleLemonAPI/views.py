@@ -1,18 +1,22 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
 from django.core.paginator import Paginator, EmptyPage
+
 import datetime
+
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 
-from .models import Category, MenuItem, Cart, Order, OrderItem
+from .models import MenuItem, Cart, Order, OrderItem
 from .serializer import MenuItemSerializer, UserSerializer, CartSerializer, OrderSerializer, OrderItemSerializer
 from .permissions import *
 
 # Create your views here.
 
 class MenuItemView(viewsets.ViewSet):
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
 
     def get_permissions(self):
         if(self.request.method=='GET'): 
@@ -78,7 +82,7 @@ class MenuItemView(viewsets.ViewSet):
         return Response({"message":"Deleting menu item"}, status.HTTP_200_OK)
     
 class GroupsManagerView(viewsets.ViewSet):
-
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
     def get_permissions(self):
         return [IsAuthenticated(),IsManager()]
 
@@ -102,7 +106,7 @@ class GroupsManagerView(viewsets.ViewSet):
         return Response({"message":"Removed user from Manager group"}, status.HTTP_200_OK)
     
 class GroupsDeliveryCrewView(viewsets.ViewSet):
-
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
     def get_permissions(self):
         return [IsAuthenticated(),IsManager()]
 
@@ -126,7 +130,7 @@ class GroupsDeliveryCrewView(viewsets.ViewSet):
         return Response({"message":"Removed user from Delivery Crew group"}, status.HTTP_200_OK)
     
 class CustomerCartView(viewsets.ViewSet):
-
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
     def get_permissions(self):
         return [IsAuthenticated(),IsCustomer()]
 
@@ -172,7 +176,7 @@ class CustomerCartView(viewsets.ViewSet):
         return Response({"message":"Deleted all carts for user"}, status.HTTP_200_OK)
     
 class OrdersView(viewsets.ViewSet):
-
+    throttle_classes = [UserRateThrottle, AnonRateThrottle]
     def get_permissions(self):
         return [IsAuthenticated()]
 
