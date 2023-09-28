@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.models import User, Group
+from django.core.paginator import Paginator, EmptyPage
 import datetime
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -20,7 +21,29 @@ class MenuItemView(viewsets.ViewSet):
             return [IsAuthenticated(),IsManager()]
 
     def list(self,request):
-        menuItemList= MenuItem.objects.all()
+        menuItemList= MenuItem.objects.select_related('category').all().order_by('category')
+        category_name = request.query_params.get('category')
+        featured = request.query_params.get('featured')
+        to_price=request.query_params.get('to_price')
+        search = request.query_params.get('search')
+        perpage = request.query_params.get('perpage', default=2)
+        page = request.query_params.get('page', default=1)
+        if category_name:
+            menuItemList = menuItemList.filter(category__title = category_name)
+        if to_price:
+            menuItemList = menuItemList.filter(price__lte=to_price)
+        if featured:
+            menuItemList = menuItemList.filter(featured=featured)
+        if search:
+            menuItemList = menuItemList.filter(title__icontains = search)
+
+        paginator = Paginator(menuItemList, per_page=perpage)
+
+        try:
+            menuItemList = paginator.page(number=page)
+        except EmptyPage:
+            menuItemList = []
+
         serialized_menuItemList = MenuItemSerializer(menuItemList, many=True)
         return Response(serialized_menuItemList.data, status.HTTP_200_OK)
     
@@ -109,19 +132,39 @@ class CustomerCartView(viewsets.ViewSet):
 
     def list(self,request):
         cart = Cart.objects.filter(user = request.user)
+
+        menuitem = request.query_params.get('menuitem')
+        to_price = request.query_params.get('price')
+        search = request.query_params.get('search')
+        perpage = request.query_params.get('perpage', default=2)
+        page = request.query_params.get('page', default=1)
+        if menuitem:
+            cart = cart.filter(menuitem = menuitem)
+        if to_price:
+            cart = cart.filter(price__lte=to_price)
+
+        if search:
+            cart = cart.filter(user__username__icontains = search)
+        paginator = Paginator(cart, per_page=perpage)
+        try:
+            cart = paginator.page(number=page)
+        except EmptyPage:
+            cart = []
+
+
         serialized_cart = CartSerializer(cart, many=True)
         return Response(serialized_cart.data, status.HTTP_200_OK)
-    
+
     def create(self, request):
         serialized_cart = CartSerializer(data=request.data, context={'request': request})
         serialized_cart.is_valid(raise_exception=True)
         menuitem = get_object_or_404(MenuItem, pk=serialized_cart.validated_data['menuitem_id'])
         serialized_cart.save(
             user = request.user,
-            menuitem = menuitem,
             unit_price = menuitem.price,
             price = menuitem.price * serialized_cart.validated_data['quantity']
         )
+        
         return Response(serialized_cart.data, status.HTTP_201_CREATED)
     
     def destroy(self, request, pk=None):
@@ -135,11 +178,31 @@ class OrdersView(viewsets.ViewSet):
 
     def list(self,request):
         if IsCustomer():
-            orders= Order.objects.filter(user=request.user)
+            orders= Order.objects.filter(user=request.user).order_by('date')
         elif IsManager():
-            orders= Order.objects.all()
+            orders= Order.objects.all().order_by('date')
         elif IsDeliveryCrew():
-            orders= Order.objects.filter(deliver_crew = request.user)
+            orders= Order.objects.filter(deliver_crew = request.user).order_by('date')
+
+        to_date = request.query_params.get('date')
+        status=request.query_params.get('status')
+        delivery_crew= request.query_params.get('delivery_crew')
+        search = request.query_params.get('search')
+        perpage = request.query_params.get('perpage', default=2)
+        page = request.query_params.get('page', default=1)
+        if to_date:
+            orders = orders.filter(date__lte = to_date)
+        if status:
+            orders = orders.filter(status=status)
+        if delivery_crew:
+            orders = orders.filter(delivery_crew=delivery_crew)
+        if search:
+            orders = orders.filter(user__username__icontains = search)
+        paginator = Paginator(orders, per_page=perpage)
+        try:
+            orders = paginator.page(number=page)
+        except EmptyPage:
+            orders = []
 
         serialized_order = OrderSerializer(orders, many=True)
         return Response(serialized_order.data, status.HTTP_200_OK)
